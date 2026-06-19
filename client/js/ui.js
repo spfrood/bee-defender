@@ -37,12 +37,14 @@ const UI = (() => {
     Leaderboard.renderTop5();
   }
 
-  function showIntro(levelConfig, onBegin) {
+  function showIntro(levelConfig, onBegin, carryover = 0) {
     showScreen('screen-intro');
     document.getElementById('intro-level-num').textContent = levelConfig.levelNum;
     document.getElementById('intro-bees').textContent = levelConfig.beeCount;
     document.getElementById('intro-time').textContent = formatTime(levelConfig.survivalTime);
-    document.getElementById('intro-ink').textContent = Math.round(levelConfig.inkLimit) + 'px';
+    const totalInk = Math.round(levelConfig.inkLimit + carryover);
+    document.getElementById('intro-ink').textContent =
+      totalInk + 'px' + (carryover > 0 ? ' (+' + Math.round(carryover) + ' carried)' : '');
     document.getElementById('intro-hint').textContent = levelConfig.hint;
     _rewire('btn-begin', onBegin);
   }

@@ -12,6 +12,8 @@ class Bee {
     this.wingAngle = Math.random() * Math.PI * 2;
     this.wingSpeed = 0.25 + Math.random() * 0.1;
     this.age       = 0;      // seconds since spawn (for fade-in)
+    this.bomber    = false;  // set true for barrier-busting bees (level > 5)
+    this.exploding = false;  // queued to detonate this frame
   }
 
   update(dt, dogBody, staticBodies, allBees) {
@@ -21,14 +23,31 @@ class Bee {
     let fx = 0;
     let fy = 0;
 
-    // 1. Seek the dog
-    if (dogBody) {
-      const towardDog = normalize({
-        x: dogBody.position.x - pos.x,
-        y: dogBody.position.y - pos.y
+    // 1. Seek a target. Bombers home in on the nearest drawn barrier so they
+    // can detonate against it; if none exists yet they fall back to the dog.
+    let seekTarget = dogBody ? dogBody.position : null;
+    let seekScale = 1;
+    if (this.bomber && staticBodies) {
+      let best = Infinity;
+      let barrier = null;
+      for (let i = 0; i < staticBodies.length; i++) {
+        const b = staticBodies[i];
+        if (b.label !== 'drawn_line') continue;
+        const d = dist(pos.x, pos.y, b.position.x, b.position.y);
+        if (d < best) { best = d; barrier = b; }
+      }
+      if (barrier) {
+        seekTarget = barrier.position;
+        seekScale = 1.4; // charge the barrier a little harder
+      }
+    }
+    if (seekTarget) {
+      const toward = normalize({
+        x: seekTarget.x - pos.x,
+        y: seekTarget.y - pos.y
       });
-      fx += towardDog.x * this.force;
-      fy += towardDog.y * this.force;
+      fx += toward.x * this.force * seekScale;
+      fy += toward.y * this.force * seekScale;
     }
 
     // 2. Separation from other bees
@@ -47,10 +66,11 @@ class Bee {
       }
     }
 
-    // 3. Obstacle avoidance via ray cast ahead of velocity
+    // 3. Obstacle avoidance via ray cast ahead of velocity.
+    // Bombers skip this — they're meant to ram straight into a barrier.
     const vel = this.body.velocity;
     const velN = normalize({ x: vel.x, y: vel.y });
-    if ((velN.x !== 0 || velN.y !== 0) && staticBodies && staticBodies.length) {
+    if (!this.bomber && (velN.x !== 0 || velN.y !== 0) && staticBodies && staticBodies.length) {
       const ahead = {
         x: pos.x + velN.x * LOOK_DIST,
         y: pos.y + velN.y * LOOK_DIST

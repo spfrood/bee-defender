@@ -14,22 +14,31 @@
   let state        = State.START;
   let currentLevel = 1;
   let runScore     = 0;     // cumulative score banked from levels cleared this run
+  let inkCarryover = 0;     // leftover ink carried into the current round
   let levelConfig  = null;
+
+  // After this level, every Nth bee to spawn is a "bomber"
+  const BOMBER_FROM_LEVEL = 5;   // bombers appear once currentLevel > 5
+  const BOMBER_EVERY      = 3;   // every 3rd bee that spawns
+  const BOMBER_GAP_RADIUS = 40;  // px radius of the hole punched in a barrier
 
   // Play state
   let bees          = [];
   let timeRemaining = 0;
   let inkRemaining  = 0;
+  let inkMax        = 0;    // ink the round started with (base + carryover)
   let beesAlive     = 0;
   let spawnQueue    = [];   // [{t}] sorted descending; .pop() yields next
   let elapsed       = 0;
   let spawnIndex    = 0;    // cycles through levelConfig.beeSpawns
+  let beesSpawned   = 0;    // count of bees spawned this round (for bomber cadence)
+  let pendingExplosions = []; // bomber hits queued during collision callbacks
 
   // Drawing
   let isDrawing      = false;
   let currentPoints  = [];
   let currentInkUsed = 0;
-  let drawnLines     = []; // [{points, body}]
+  let drawnLines     = []; // [{points, bodies}]
 
   // Particles
   let particles = [];
@@ -57,14 +66,15 @@
   });
 
   function onStartPlay() {
-    runScore = 0;   // fresh run
+    runScore = 0;       // fresh run
+    inkCarryover = 0;   // no ink carried into the first round
     showIntro();
   }
 
   function showIntro() {
     state = State.INTRO;
     levelConfig = LevelGenerator.generate(currentLevel);
-    UI.showIntro(levelConfig, startPlay);
+    UI.showIntro(levelConfig, startPlay, inkCarryover);
   }
 
   // ---------- Play ----------
@@ -80,17 +90,25 @@
     isDrawing = false;
     elapsed = 0;
     spawnIndex = 0;
+    beesSpawned = 0;
     beesAlive = 0;
+    pendingExplosions = [];
 
     timeRemaining = levelConfig.survivalTime;
-    inkRemaining = levelConfig.inkLimit;
+    // Leftover ink from the previous round carries forward
+    inkRemaining = levelConfig.inkLimit + inkCarryover;
+    inkMax = inkRemaining;
 
-    // Spawn timing uses its own RNG, separate from layout RNG
-    const rng = mulberry32((levelConfig.seed ^ 0xDEADBEEF) >>> 0);
+    // Deterministic spawn schedule: first bee at FIRST_SPAWN_DELAY, last bee at
+    // survivalTime - POST_SPAWN_BUFFER, the rest spread evenly between.
+    const FIRST_SPAWN_DELAY = 2; // seconds before the first bee appears
+    const POST_SPAWN_BUFFER = 7; // seconds of survival after the last bee spawns
+    const n = levelConfig.beeCount;
+    const lastSpawn = levelConfig.survivalTime - POST_SPAWN_BUFFER;
+    const interval = n > 1 ? (lastSpawn - FIRST_SPAWN_DELAY) / (n - 1) : 0;
     spawnQueue = [];
-    for (let i = 0; i < levelConfig.beeCount; i++) {
-      const jitter = (rng() - 0.5) * levelConfig.spawnInterval * 0.3;
-      spawnQueue.push({ t: Math.max(0, i * levelConfig.spawnInterval + jitter) });
+    for (let i = 0; i < n; i++) {
+      spawnQueue.push({ t: FIRST_SPAWN_DELAY + i * interval });
     }
     spawnQueue.sort((a, b) => b.t - a.t); // descending; pop() gives soonest
 
@@ -110,7 +128,7 @@
     UI.showGame();
     UI.setLevelHUD(currentLevel);
     UI.updateTimer(timeRemaining, levelConfig.survivalTime);
-    UI.updateInk(inkRemaining, levelConfig.inkLimit);
+    UI.updateInk(inkRemaining, inkMax);
     UI.updateBeeCount(0, levelConfig.beeCount);
     UI.setDangerLevel(0);
 
@@ -150,6 +168,12 @@
 
     PhysicsEngine.step(dt * 1000);
 
+    // Resolve bomber hits queued during the collision callbacks
+    if (pendingExplosions.length > 0) {
+      for (const ex of pendingExplosions) explodeBomber(ex.bee, ex.x, ex.y);
+      pendingExplosions = [];
+    }
+
     const dogBody = PhysicsEngine.getDogBody();
     const staticBodies = PhysicsEngine.getStaticBodies();
     for (const bee of bees) {
@@ -163,7 +187,7 @@
     updateDanger();
 
     UI.updateTimer(timeRemaining, levelConfig.survivalTime);
-    UI.updateInk(inkRemaining, levelConfig.inkLimit);
+    UI.updateInk(inkRemaining, inkMax);
     UI.updateBeeCount(beesAlive, levelConfig.beeCount);
 
     if (state === State.PLAY &&
@@ -175,18 +199,43 @@
   function spawnBee() {
     const sp = levelConfig.beeSpawns[spawnIndex % levelConfig.beeSpawns.length];
     spawnIndex++;
+    beesSpawned++;
+    // After level 5, every 3rd bee is a bomber: it flies to a barrier,
+    // explodes, and blows a gap in it.
+    const isBomber = currentLevel > BOMBER_FROM_LEVEL && beesSpawned % BOMBER_EVERY === 0;
     const body = PhysicsEngine.createBee(sp.x, sp.y);
-    bees.push(new Bee(body, levelConfig.beeSpeed, levelConfig.beeForce));
-    emitParticles(sp.x, sp.y, '#f5c518', 6);
+    const bee = new Bee(body, levelConfig.beeSpeed, levelConfig.beeForce);
+    bee.bomber = isBomber;
+    bees.push(bee);
+    emitParticles(sp.x, sp.y, isBomber ? '#ff7518' : '#f5c518', isBomber ? 10 : 6);
     UI.updateBeeCount(bees.length, levelConfig.beeCount);
   }
 
   function onCollision(event) {
     const pairs = event.pairs;
     const dogBody = PhysicsEngine.getDogBody();
-    if (!dogBody) return;
     for (let i = 0; i < pairs.length; i++) {
       const { bodyA, bodyB } = pairs[i];
+
+      // Bomber bee hitting a drawn barrier → queue an explosion that punches a
+      // gap. Deferred to after the physics step so we don't mutate the world
+      // mid-collision.
+      const lineBody = bodyA.label === 'drawn_line' ? bodyA
+                     : bodyB.label === 'drawn_line' ? bodyB : null;
+      const beeBody  = bodyA.label === 'bee' ? bodyA
+                     : bodyB.label === 'bee' ? bodyB : null;
+      if (lineBody && beeBody) {
+        const bomber = bees.find(b =>
+          b.body && b.body.id === beeBody.id && b.alive && b.bomber && !b.exploding);
+        if (bomber) {
+          bomber.exploding = true;
+          pendingExplosions.push({ bee: bomber, x: lineBody.position.x, y: lineBody.position.y });
+        }
+        continue;
+      }
+
+      // Any bee reaching the dog → lose
+      if (!dogBody) continue;
       const isDogA = bodyA.id === dogBody.id;
       const isDogB = bodyB.id === dogBody.id;
       if (!isDogA && !isDogB) continue;
@@ -200,6 +249,44 @@
         return;
       }
     }
+  }
+
+  function explodeBomber(bee, x, y) {
+    if (!bee.body) return;
+    const bx = bee.body.position.x;
+    const by = bee.body.position.y;
+    bee.alive = false;
+    PhysicsEngine.removeBodies([bee.body]);
+    emitParticles(bx, by, '#ff7518', 18);
+    emitParticles(x, y, '#ffd54a', 10);
+    punchGap(x, y, BOMBER_GAP_RADIUS);
+  }
+
+  // Remove the part of any barrier within `radius` of (px,py) and rebuild the
+  // surviving runs so the physics bodies and the rendered line stay in sync.
+  function punchGap(px, py, radius) {
+    const next = [];
+    for (const line of drawnLines) {
+      const hit = line.points.some(p => dist(p.x, p.y, px, py) <= radius);
+      if (!hit) { next.push(line); continue; }
+
+      PhysicsEngine.removeBodies(line.bodies);
+
+      let run = [];
+      const flush = () => {
+        if (run.length >= 2) {
+          const pts = run.map(p => ({ x: p.x, y: p.y }));
+          next.push({ points: pts, bodies: PhysicsEngine.createLineBody(pts) });
+        }
+        run = [];
+      };
+      for (const p of line.points) {
+        if (dist(p.x, p.y, px, py) <= radius) flush();
+        else run.push(p);
+      }
+      flush();
+    }
+    drawnLines = next;
   }
 
   // ---------- Drawing ----------
@@ -251,12 +338,12 @@
   function commitLine() {
     if (currentPoints.length >= 2) {
       inkRemaining = Math.max(0, inkRemaining - currentInkUsed);
-      const body = PhysicsEngine.createLineBody(currentPoints);
-      drawnLines.push({ points: [...currentPoints], body });
+      const bodies = PhysicsEngine.createLineBody(currentPoints);
+      drawnLines.push({ points: [...currentPoints], bodies });
     }
     currentPoints = [];
     currentInkUsed = 0;
-    UI.updateInk(inkRemaining, levelConfig.inkLimit);
+    UI.updateInk(inkRemaining, inkMax);
   }
 
   // ---------- Render ----------
@@ -336,9 +423,8 @@
 
     let levelScore = 0;
     if (outcome === 'win') {
-      levelScore = currentLevel * 1000 +
-        Math.floor(timeRemaining * 50) +
-        Math.floor(inkRemaining * 0.5);
+      // Score for a level = level number + leftover ink (no time bonus)
+      levelScore = currentLevel + Math.floor(inkRemaining);
     }
 
     lastResult = {
@@ -359,7 +445,8 @@
     state = State.RESULT;
     UI.showResult(lastResult.outcome, lastResult, {
       onNext: () => {
-        runScore += lastResult.levelScore;   // bank the level just cleared
+        runScore += lastResult.levelScore;       // bank the level just cleared
+        inkCarryover = lastResult.inkRemaining;  // carry leftover ink forward
         currentLevel += 1;
         showIntro();
       },
@@ -387,6 +474,7 @@
   function startNewGame() {
     currentLevel = 1;
     runScore = 0;
+    inkCarryover = 0;
     UI.showStart(onStartPlay);
   }
 

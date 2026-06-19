@@ -225,6 +225,20 @@ const Renderer = {
     ctx.save();
     ctx.globalAlpha = Math.min(1, bee.age / 0.4);
     ctx.translate(pos.x, pos.y);
+
+    // Bombers pulse with a red warning glow so they read as a threat
+    if (bee.bomber) {
+      const pulse = 0.6 + 0.4 * Math.sin(bee.age * 10);
+      ctx.save();
+      ctx.shadowColor = '#ff3b1f';
+      ctx.shadowBlur = 16 * pulse;
+      ctx.fillStyle = 'rgba(255, 59, 31, ' + (0.35 * pulse).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(0, 0, BEE_RADIUS * 1.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
     ctx.rotate(angle);
 
     const flap = Math.sin(bee.wingAngle) * 0.5 + 0.5;

@@ -37,10 +37,11 @@ const LevelGenerator = (() => {
     const rng = mulberry32(seed);
 
     const beeCount      = clamp(2 + Math.floor((N - 1) * 0.8), 2, 16);
-    const survivalTime  = 12 + (N - 1) * 2.2;
+    // Round length scales only with the number of bees: 2s before the first
+    // bee + 1s per bee of spawn window + 7s after the last bee = beeCount + 9.
+    const survivalTime  = beeCount + 9;
     const inkLimit      = clamp(600 - (N - 1) * 16, 170, 600);
     const obstacleCount = Math.floor((N - 1) / 3);
-    const spawnInterval = clamp(3.2 - (N - 1) * 0.12, 0.7, 3.2);
     const beeSpeed      = clamp(1.0 + (N - 1) * 0.12, 1.0, 3.2);
     const beeForce      = beeSpeed * 0.00012;
 
@@ -87,7 +88,6 @@ const LevelGenerator = (() => {
       survivalTime,
       inkLimit,
       obstacleCount,
-      spawnInterval,
       beeSpeed,
       beeForce,
       dogPos,

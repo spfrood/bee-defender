@@ -13,6 +13,7 @@
 
   let state        = State.START;
   let currentLevel = 1;
+  let runScore     = 0;     // cumulative score banked from levels cleared this run
   let levelConfig  = null;
 
   // Play state
@@ -56,6 +57,7 @@
   });
 
   function onStartPlay() {
+    runScore = 0;   // fresh run
     showIntro();
   }
 
@@ -332,16 +334,17 @@
     stopLoop();
     UI.setDangerLevel(0);
 
-    let score = 0;
+    let levelScore = 0;
     if (outcome === 'win') {
-      score = currentLevel * 1000 +
+      levelScore = currentLevel * 1000 +
         Math.floor(timeRemaining * 50) +
         Math.floor(inkRemaining * 0.5);
     }
 
     lastResult = {
       outcome,
-      score,
+      levelScore,                    // this level's points (0 on a loss)
+      score: runScore + levelScore,  // cumulative run total
       level: currentLevel,
       timeRemaining,
       inkRemaining,
@@ -355,7 +358,11 @@
   function showResultScreen() {
     state = State.RESULT;
     UI.showResult(lastResult.outcome, lastResult, {
-      onNext: () => { currentLevel += 1; showIntro(); },
+      onNext: () => {
+        runScore += lastResult.levelScore;   // bank the level just cleared
+        currentLevel += 1;
+        showIntro();
+      },
       onRetry: () => { showIntro(); },
       onLeaderboard: () => {
         state = State.LEADERBOARD;
@@ -364,8 +371,23 @@
           lastResult.username,
           lastResult.score
         );
+      },
+      // Submitting a score is only offered after a loss, and it ends the run.
+      onSubmitted: () => {
+        state = State.LEADERBOARD;
+        UI.showLeaderboard(
+          startNewGame,
+          lastResult.username,
+          lastResult.score
+        );
       }
     });
+  }
+
+  function startNewGame() {
+    currentLevel = 1;
+    runScore = 0;
+    UI.showStart(onStartPlay);
   }
 
   // ---------- Loop teardown ----------

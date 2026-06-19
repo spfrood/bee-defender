@@ -10,7 +10,8 @@ const UI = (() => {
     'screen-leaderboard'
   ];
 
-  const USERNAME_RE = /^[A-Za-z0-9 _-]{1,20}$/;
+  // Arcade-style initials: exactly 3 uppercase letters/digits
+  const USERNAME_RE = /^[A-Z0-9]{3}$/;
 
   let _toastTimeout = null;
 
@@ -33,6 +34,7 @@ const UI = (() => {
   function showStart(onPlay) {
     showScreen('screen-start');
     _rewire('btn-play', onPlay);
+    Leaderboard.renderTop5();
   }
 
   function showIntro(levelConfig, onBegin) {
@@ -64,16 +66,17 @@ const UI = (() => {
       message.textContent = 'The dog is safe. Time left: ' +
         formatTime(data.timeRemaining) + ' · Ink left: ' +
         Math.round(data.inkRemaining) + 'px';
-      scoreEl.textContent = data.score.toLocaleString();
+      scoreEl.textContent = data.score.toLocaleString(); // cumulative run total
       btnNext.style.display = '';
-      form.style.display = '';
+      form.style.display = 'none'; // no score submission mid-run
     } else {
       title.textContent = 'The Bees Got Through!';
       title.style.color = 'var(--danger)';
-      message.textContent = 'Level ' + data.level + ' — try a tighter barrier.';
-      scoreEl.textContent = '';
+      message.textContent = 'Game over at level ' + data.level +
+        '. Enter your initials to record your run.';
+      scoreEl.textContent = data.score.toLocaleString(); // final cumulative score
       btnNext.style.display = 'none';
-      form.style.display = 'none'; // scores only recorded on win
+      form.style.display = ''; // score submitted only after a loss — it ends the game
     }
 
     _rewire('btn-next', cbs.onNext);
@@ -92,29 +95,38 @@ const UI = (() => {
       // cancelled: no toast
     });
 
-    if (outcome === 'win') {
+    if (outcome === 'lose') {
       const input = document.getElementById('username-input');
+      // Keep the field arcade-style: uppercase letters/digits only
+      if (!input.dataset.arcadeFilter) {
+        input.dataset.arcadeFilter = '1';
+        input.addEventListener('input', () => {
+          input.value = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+        });
+      }
       const saved = sessionStorage.getItem('bd_username');
       if (saved) input.value = saved;
-      _rewireSubmit(data, input);
+      _rewireSubmit(data, input, cbs.onSubmitted);
     }
   }
 
-  // {once:true} consumes the listener, so re-arm after a failed validation
-  function _rewireSubmit(data, input) {
+  // {once:true} consumes the listener, so re-arm after a failed validation/submit
+  function _rewireSubmit(data, input, onSubmitted) {
     _rewire('btn-submit-score', async () => {
-      const username = input.value.trim();
+      const username = input.value.trim().toUpperCase();
       if (!USERNAME_RE.test(username)) {
-        toast('Name must be 1–20 letters, numbers, spaces, - or _');
-        _rewireSubmit(data, input);
+        toast('Enter exactly 3 letters or numbers (e.g. AAA)');
+        _rewireSubmit(data, input, onSubmitted);
         return;
       }
       const res = await Leaderboard.submitScore(username, data.score, data.level);
       if (res && typeof res.rank === 'number') {
         sessionStorage.setItem('bd_username', username);
         toast('Score submitted! You are rank #' + res.rank);
+        if (onSubmitted) onSubmitted(); // ends the game → leaderboard → start
       } else {
         toast('Could not submit score. Try again later.');
+        _rewireSubmit(data, input, onSubmitted); // re-arm so they can retry
       }
     });
   }

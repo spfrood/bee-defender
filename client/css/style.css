@@ -133,6 +133,69 @@ body {
   margin-top: 18px;
 }
 
+/* ---------- Start-screen top scores ---------- */
+
+.start-leaderboard {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  text-align: left;
+}
+
+.start-leaderboard-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  color: var(--text-muted);
+  font-size: 1rem;
+  font-weight: normal;
+  letter-spacing: 0.05em;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.start-leaderboard-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.start-leaderboard-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.start-leaderboard-list li:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.start-lb-rank {
+  flex: 0 0 2.2em;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.start-lb-name {
+  flex: 1 1 auto;
+  font-weight: bold;
+  letter-spacing: 0.12em;
+  color: var(--text-primary);
+}
+
+.start-lb-score {
+  flex: 0 0 auto;
+  font-family: Georgia, 'Times New Roman', serif;
+  color: var(--accent-amber);
+}
+
+.start-lb-msg {
+  justify-content: center;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 /* ---------- Score submission ---------- */
 
 #score-submit-form {
@@ -149,8 +212,14 @@ body {
   color: var(--text-primary);
   padding: 10px 14px;
   font-family: inherit;
-  font-size: 1rem;
-  width: 200px;
+  /* Arcade-style 3-char initials: big, spaced, centered, uppercase */
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.5em;
+  text-align: center;
+  text-transform: uppercase;
+  text-indent: 0.5em; /* offset letter-spacing so glyphs stay centered */
+  width: 120px;
 }
 
 #username-input:focus {

@@ -74,5 +74,33 @@ const Leaderboard = (() => {
     }
   }
 
-  return { submitScore, fetchScores, render };
+  // Compact top-5 list for the start/splash screen
+  async function renderTop5() {
+    const list = document.getElementById('start-leaderboard-list');
+    if (!list) return;
+
+    list.innerHTML = '<li class="start-lb-msg">Loading…</li>';
+
+    const entries = await fetchScores(5);
+
+    if (entries.length === 0) {
+      list.innerHTML = '<li class="start-lb-msg">No scores yet — be the first!</li>';
+      return;
+    }
+
+    const medals = ['\u{1F947}', '\u{1F948}', '\u{1F949}'];
+
+    list.innerHTML = '';
+    entries.slice(0, 5).forEach((entry, i) => {
+      const li = document.createElement('li');
+      const rankLabel = i < 3 ? medals[i] : '#' + (i + 1);
+      li.innerHTML =
+        '<span class="start-lb-rank">' + rankLabel + '</span>' +
+        '<span class="start-lb-name">' + escapeHtml(entry.username) + '</span>' +
+        '<span class="start-lb-score">' + Number(entry.score).toLocaleString() + '</span>';
+      list.appendChild(li);
+    });
+  }
+
+  return { submitScore, fetchScores, render, renderTop5 };
 })();

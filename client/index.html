@@ -14,6 +14,10 @@
       <h1 class="title">🐝 Bee Defender</h1>
       <p class="subtitle">Draw barriers. Protect the dog. Survive the swarm.</p>
       <button id="btn-play" class="btn btn-primary">Play</button>
+      <div id="start-leaderboard" class="start-leaderboard">
+        <h3 class="start-leaderboard-title">🏆 Top Scores</h3>
+        <ol id="start-leaderboard-list" class="start-leaderboard-list"></ol>
+      </div>
     </div>
   </div>
 
@@ -59,8 +63,9 @@
       <div id="result-score" class="score-display"></div>
       <p id="result-message"></p>
       <div id="score-submit-form">
-        <input id="username-input" type="text" maxlength="20"
-               placeholder="Your name" autocomplete="off">
+        <input id="username-input" type="text" maxlength="3"
+               placeholder="AAA" autocomplete="off"
+               autocapitalize="characters" spellcheck="false">
         <button id="btn-submit-score" class="btn">Submit Score</button>
       </div>
       <div class="btn-row">

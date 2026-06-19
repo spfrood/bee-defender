@@ -29,7 +29,8 @@ function loadSalt() {
 
 const SALT = loadSalt();
 
-const USERNAME_RE = /^[A-Za-z0-9 _-]+$/;
+// Arcade-style initials: exactly 3 uppercase letters/digits (e.g. "AAA")
+const USERNAME_RE = /^[A-Z0-9]{3}$/;
 
 function hashIp(ip) {
   return crypto.createHash('sha256').update(ip + SALT).digest('hex');
@@ -52,12 +53,7 @@ const getLimiter = rateLimit({
 router.post('/score', postLimiter, (req, res) => {
   const { username, score, level } = req.body || {};
 
-  if (
-    typeof username !== 'string' ||
-    username.length < 1 ||
-    username.length > 20 ||
-    !USERNAME_RE.test(username)
-  ) {
+  if (typeof username !== 'string' || !USERNAME_RE.test(username)) {
     return res.status(400).json({ error: 'Invalid username' });
   }
 

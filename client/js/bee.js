@@ -14,6 +14,7 @@ class Bee {
     this.age       = 0;      // seconds since spawn (for fade-in)
     this.bomber    = false;  // set true for barrier-busting bees (level > 5)
     this.exploding = false;  // queued to detonate this frame
+    this.eatProgress = 0;    // seconds spent gnawing a barrier that blocks it
   }
 
   update(dt, dogBody, staticBodies, allBees) {

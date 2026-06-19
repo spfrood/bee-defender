@@ -22,6 +22,12 @@
   const BOMBER_EVERY      = 3;   // every 3rd bee that spawns
   const BOMBER_GAP_RADIUS = 40;  // px radius of the hole punched in a barrier
 
+  // Ordinary bees gnaw through a barrier only while it blocks their path to
+  // the dog; after EAT_TIME of being blocked they break through and die.
+  const EAT_TIME       = 2.5;  // seconds of sustained blocking to break through
+  const EAT_REACH      = 8;    // px ahead of the bee a barrier counts as blocking
+  const EAT_GAP_RADIUS = 26;   // px radius of the hole a bee eats
+
   // Play state
   let bees          = [];
   let timeRemaining = 0;
@@ -180,6 +186,8 @@
       if (bee.alive) bee.update(dt, dogBody, staticBodies, bees);
     }
 
+    updateEating(dt, dogBody);
+
     bees = bees.filter(b => b.alive);
     beesAlive = bees.length;
 
@@ -260,6 +268,48 @@
     emitParticles(bx, by, '#ff7518', 18);
     emitParticles(x, y, '#ffd54a', 10);
     punchGap(x, y, BOMBER_GAP_RADIUS);
+  }
+
+  // Ordinary bees don't seek barriers — they head for the dog. But when a
+  // barrier sits directly between a bee and the dog, the bee gnaws at it; once
+  // it has been blocked long enough it eats a hole and dies in the process.
+  function updateEating(dt, dogBody) {
+    if (!dogBody) return;
+    let lineBodies = PhysicsEngine.getStaticBodies().filter(b => b.label === 'drawn_line');
+    if (lineBodies.length === 0) return;
+
+    for (const bee of bees) {
+      if (!bee.alive || bee.bomber || !bee.body) continue;
+
+      const pos = bee.body.position;
+      const dir = normalize({ x: dogBody.position.x - pos.x, y: dogBody.position.y - pos.y });
+      if (dir.x === 0 && dir.y === 0) { bee.eatProgress = 0; continue; }
+
+      const reach = BEE_RADIUS + EAT_REACH;
+      const end = { x: pos.x + dir.x * reach, y: pos.y + dir.y * reach };
+      const blocked = Matter.Query.ray(lineBodies, pos, end, BEE_RADIUS * 0.8);
+
+      if (blocked.length === 0) {
+        bee.eatProgress = 0;
+        continue;
+      }
+
+      bee.eatProgress += dt;
+      // Sawdust while chewing
+      if (Math.random() < dt * 6) {
+        emitParticles(pos.x + dir.x * BEE_RADIUS, pos.y + dir.y * BEE_RADIUS, '#caa24a', 1);
+      }
+
+      if (bee.eatProgress >= EAT_TIME) {
+        const hb = blocked[0].body;
+        emitParticles(pos.x, pos.y, '#caa24a', 12);
+        punchGap(hb.position.x, hb.position.y, EAT_GAP_RADIUS);
+        bee.alive = false;
+        PhysicsEngine.removeBodies([bee.body]);
+        lineBodies = PhysicsEngine.getStaticBodies().filter(b => b.label === 'drawn_line');
+        if (lineBodies.length === 0) return;
+      }
+    }
   }
 
   // Remove the part of any barrier within `radius` of (px,py) and rebuild the

@@ -14,7 +14,7 @@
   let state        = State.START;
   let currentLevel = 1;
   let runScore     = 0;     // cumulative score banked from levels cleared this run
-  let inkCarryover = 0;     // leftover ink carried into the current round
+  let inkCarryover = { black: 0, red: 0 };     // leftover ink carried into the current round
   let levelConfig  = null;
 
   // After this level, every Nth bee to spawn is a "bomber"
@@ -31,8 +31,9 @@
   // Play state
   let bees          = [];
   let timeRemaining = 0;
-  let inkRemaining  = 0;
-  let inkMax        = 0;    // ink the round started with (base + carryover)
+  let inkRemaining  = { black: 0, red: 0 };
+  let inkMax        = { black: 0, red: 0 };    // ink the round started with (base + carryover)
+  let currentInkType = 'black'; // toggles between 'black' and 'red'
   let beesAlive     = 0;
   let spawnQueue    = [];   // [{t}] sorted descending; .pop() yields next
   let elapsed       = 0;
@@ -73,14 +74,17 @@
 
   function onStartPlay() {
     runScore = 0;       // fresh run
-    inkCarryover = 0;   // no ink carried into the first round
+    inkCarryover = { black: 0, red: 0 };   // no ink carried into the first round
     showIntro();
   }
 
   function showIntro() {
     state = State.INTRO;
     levelConfig = LevelGenerator.generate(currentLevel);
-    UI.showIntro(levelConfig, startPlay, inkCarryover);
+    // Since UI currently accepts a single number for carryover on the intro screen,
+    // we'll pass total carryover. Or ideally we'd show both.
+    const totalCarryover = inkCarryover.black + inkCarryover.red;
+    UI.showIntro(levelConfig, startPlay, totalCarryover);
   }
 
   // ---------- Play ----------
@@ -102,8 +106,16 @@
 
     timeRemaining = levelConfig.survivalTime;
     // Leftover ink from the previous round carries forward
-    inkRemaining = levelConfig.inkLimit + inkCarryover;
-    inkMax = inkRemaining;
+    // Red ink is purely an optional toggle, let's say they get the same limit
+    inkRemaining = {
+      black: levelConfig.inkLimit + inkCarryover.black,
+      red: levelConfig.inkLimit + inkCarryover.red
+    };
+    inkMax = {
+      black: inkRemaining.black,
+      red: inkRemaining.red
+    };
+    currentInkType = 'black';
 
     // Deterministic spawn schedule: first bee at FIRST_SPAWN_DELAY, last bee at
     // survivalTime - POST_SPAWN_BUFFER, the rest spread evenly between.
@@ -131,10 +143,19 @@
       onDrawEnd: handleDrawEnd
     });
 
+    // Ink type keyboard toggles
+    document.addEventListener('keydown', handleKeyDown);
+
     UI.showGame();
+    UI.setInkToggleBinding(() => {
+      currentInkType = currentInkType === 'black' ? 'red' : 'black';
+      UI.updateInkToggleUI(currentInkType);
+      UI.updateInk(inkRemaining[currentInkType], inkMax[currentInkType], currentInkType);
+    });
     UI.setLevelHUD(currentLevel);
     UI.updateTimer(timeRemaining, levelConfig.survivalTime);
-    UI.updateInk(inkRemaining, inkMax);
+    UI.updateInk(inkRemaining[currentInkType], inkMax[currentInkType], currentInkType);
+    UI.updateInkToggleUI(currentInkType);
     UI.updateBeeCount(0, levelConfig.beeCount);
     UI.setDangerLevel(0);
 
@@ -195,7 +216,7 @@
     updateDanger();
 
     UI.updateTimer(timeRemaining, levelConfig.survivalTime);
-    UI.updateInk(inkRemaining, inkMax);
+    UI.updateInk(inkRemaining[currentInkType], inkMax[currentInkType], currentInkType);
     UI.updateBeeCount(beesAlive, levelConfig.beeCount);
 
     if (state === State.PLAY &&
@@ -228,16 +249,29 @@
       // Bomber bee hitting a drawn barrier → queue an explosion that punches a
       // gap. Deferred to after the physics step so we don't mutate the world
       // mid-collision.
-      const lineBody = bodyA.label === 'drawn_line' ? bodyA
-                     : bodyB.label === 'drawn_line' ? bodyB : null;
+      const lineBody = bodyA.label.startsWith('drawn_line') ? bodyA
+                     : bodyB.label.startsWith('drawn_line') ? bodyB : null;
       const beeBody  = bodyA.label === 'bee' ? bodyA
                      : bodyB.label === 'bee' ? bodyB : null;
+
       if (lineBody && beeBody) {
-        const bomber = bees.find(b =>
-          b.body && b.body.id === beeBody.id && b.alive && b.bomber && !b.exploding);
-        if (bomber) {
-          bomber.exploding = true;
-          pendingExplosions.push({ bee: bomber, x: lineBody.position.x, y: lineBody.position.y });
+        const bee = bees.find(b => b.body && b.body.id === beeBody.id && b.alive);
+        if (!bee) continue;
+
+        if (lineBody.label === 'drawn_line_red') {
+          // Red ink kills bee, burns up the section
+          bee.alive = false;
+          PhysicsEngine.removeBodies([bee.body]);
+          // Ash particles
+          emitParticles(bee.body.position.x, bee.body.position.y, '#555555', 12);
+          emitParticles(lineBody.position.x, lineBody.position.y, '#ff4444', 8);
+          punchGap(lineBody.position.x, lineBody.position.y, BOMBER_GAP_RADIUS, 'red');
+          continue; // Red ink takes precedence over bomber checks
+        }
+
+        if (bee.bomber && !bee.exploding) {
+          bee.exploding = true;
+          pendingExplosions.push({ bee: bee, x: lineBody.position.x, y: lineBody.position.y });
         }
         continue;
       }
@@ -267,6 +301,7 @@
     PhysicsEngine.removeBodies([bee.body]);
     emitParticles(bx, by, '#ff7518', 18);
     emitParticles(x, y, '#ffd54a', 10);
+    // Bomber blows a gap in *all* ink types at the location
     punchGap(x, y, BOMBER_GAP_RADIUS);
   }
 
@@ -275,7 +310,7 @@
   // it has been blocked long enough it eats a hole and dies in the process.
   function updateEating(dt, dogBody) {
     if (!dogBody) return;
-    let lineBodies = PhysicsEngine.getStaticBodies().filter(b => b.label === 'drawn_line');
+    let lineBodies = PhysicsEngine.getStaticBodies().filter(b => b.label.startsWith('drawn_line'));
     if (lineBodies.length === 0) return;
 
     for (const bee of bees) {
@@ -306,7 +341,7 @@
         punchGap(hb.position.x, hb.position.y, EAT_GAP_RADIUS);
         bee.alive = false;
         PhysicsEngine.removeBodies([bee.body]);
-        lineBodies = PhysicsEngine.getStaticBodies().filter(b => b.label === 'drawn_line');
+        lineBodies = PhysicsEngine.getStaticBodies().filter(b => b.label.startsWith('drawn_line'));
         if (lineBodies.length === 0) return;
       }
     }
@@ -314,9 +349,14 @@
 
   // Remove the part of any barrier within `radius` of (px,py) and rebuild the
   // surviving runs so the physics bodies and the rendered line stay in sync.
-  function punchGap(px, py, radius) {
+  function punchGap(px, py, radius, targetType = null) {
     const next = [];
     for (const line of drawnLines) {
+      if (targetType && line.type !== targetType) {
+        next.push(line);
+        continue;
+      }
+
       const hit = line.points.some(p => dist(p.x, p.y, px, py) <= radius);
       if (!hit) { next.push(line); continue; }
 
@@ -326,7 +366,7 @@
       const flush = () => {
         if (run.length >= 2) {
           const pts = run.map(p => ({ x: p.x, y: p.y }));
-          next.push({ points: pts, bodies: PhysicsEngine.createLineBody(pts) });
+          next.push({ points: pts, bodies: PhysicsEngine.createLineBody(pts, line.type), type: line.type });
         }
         run = [];
       };
@@ -342,7 +382,7 @@
   // ---------- Drawing ----------
 
   function handleDrawStart(pt) {
-    if (state !== State.PLAY || inkRemaining <= 0) return;
+    if (state !== State.PLAY || inkRemaining[currentInkType] <= 0) return;
     isDrawing = true;
     currentPoints = [pt];
     currentInkUsed = 0;
@@ -354,8 +394,8 @@
     const segLen = dist(prev.x, prev.y, pt.x, pt.y); // 4-arg form!
     if (segLen <= 0) return;
 
-    if (currentInkUsed + segLen > inkRemaining) {
-      const available = inkRemaining - currentInkUsed;
+    if (currentInkUsed + segLen > inkRemaining[currentInkType]) {
+      const available = inkRemaining[currentInkType] - currentInkUsed;
       if (available > 0.5) {
         const t = available / segLen;
         currentPoints.push({
@@ -387,13 +427,13 @@
 
   function commitLine() {
     if (currentPoints.length >= 2) {
-      inkRemaining = Math.max(0, inkRemaining - currentInkUsed);
-      const bodies = PhysicsEngine.createLineBody(currentPoints);
-      drawnLines.push({ points: [...currentPoints], bodies });
+      inkRemaining[currentInkType] = Math.max(0, inkRemaining[currentInkType] - currentInkUsed);
+      const bodies = PhysicsEngine.createLineBody(currentPoints, currentInkType);
+      drawnLines.push({ points: [...currentPoints], bodies, type: currentInkType });
     }
     currentPoints = [];
     currentInkUsed = 0;
-    UI.updateInk(inkRemaining, inkMax);
+    UI.updateInk(inkRemaining[currentInkType], inkMax[currentInkType], currentInkType);
   }
 
   // ---------- Render ----------
@@ -403,6 +443,7 @@
       bees: bees.filter(b => b.alive),
       drawnLines,
       currentLine: isDrawing ? currentPoints : null,
+      currentInkType,
       particles,
       dogBody: PhysicsEngine.getDogBody(),
       timeRemaining,
@@ -472,9 +513,10 @@
     UI.setDangerLevel(0);
 
     let levelScore = 0;
+    const totalRemaining = inkRemaining.black + inkRemaining.red;
     if (outcome === 'win') {
       // Score for a level = level number + leftover ink (no time bonus)
-      levelScore = currentLevel + Math.floor(inkRemaining);
+      levelScore = currentLevel + Math.floor(totalRemaining);
     }
 
     lastResult = {
@@ -483,7 +525,8 @@
       score: runScore + levelScore,  // cumulative run total
       level: currentLevel,
       timeRemaining,
-      inkRemaining,
+      inkRemaining: totalRemaining,  // passed for display
+      inkRemainingObj: { ...inkRemaining }, // passed for carryover
       seed: levelConfig.seed,
       username: sessionStorage.getItem('bd_username') || ''
     };
@@ -496,7 +539,7 @@
     UI.showResult(lastResult.outcome, lastResult, {
       onNext: () => {
         runScore += lastResult.levelScore;       // bank the level just cleared
-        inkCarryover = lastResult.inkRemaining;  // carry leftover ink forward
+        inkCarryover = lastResult.inkRemainingObj;  // carry leftover ink forward
         currentLevel += 1;
         showIntro();
       },
@@ -524,8 +567,23 @@
   function startNewGame() {
     currentLevel = 1;
     runScore = 0;
-    inkCarryover = 0;
+    inkCarryover = { black: 0, red: 0 };
     UI.showStart(onStartPlay);
+  }
+
+  // ---------- Input ----------
+
+  function handleKeyDown(e) {
+    if (state !== State.PLAY) return;
+    if (e.key === '1') {
+      currentInkType = 'black';
+      UI.updateInkToggleUI(currentInkType);
+      UI.updateInk(inkRemaining[currentInkType], inkMax[currentInkType], currentInkType);
+    } else if (e.key === '2') {
+      currentInkType = 'red';
+      UI.updateInkToggleUI(currentInkType);
+      UI.updateInk(inkRemaining[currentInkType], inkMax[currentInkType], currentInkType);
+    }
   }
 
   // ---------- Loop teardown ----------
@@ -540,5 +598,6 @@
   function stopLoop() {
     stopRaf();
     InputHandler.destroy();
+    document.removeEventListener('keydown', handleKeyDown);
   }
 })();

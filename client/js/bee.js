@@ -33,7 +33,7 @@ class Bee {
       let barrier = null;
       for (let i = 0; i < staticBodies.length; i++) {
         const b = staticBodies[i];
-        if (b.label !== 'drawn_line') continue;
+        if (!b.label.startsWith('drawn_line')) continue;
         const d = dist(pos.x, pos.y, b.position.x, b.position.y);
         if (d < best) { best = d; barrier = b; }
       }

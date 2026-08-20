@@ -89,8 +89,9 @@ const PhysicsEngine = {
     return body;
   },
 
-  createLineBody(points) {
+  createLineBody(points, type = 'black') {
     const bodies = [];
+    const label = type === 'red' ? 'drawn_line_red' : 'drawn_line_black';
     for (let i = 1; i < points.length; i++) {
       const a = points[i - 1];
       const b = points[i];
@@ -105,7 +106,7 @@ const PhysicsEngine = {
         {
           isStatic: true,
           angle,
-          label: 'drawn_line',
+          label,
           restitution: 0.45,
           collisionFilter: { category: CAT_STATIC, mask: CAT_BEE }
         }

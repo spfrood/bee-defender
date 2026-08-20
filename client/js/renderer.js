@@ -56,11 +56,11 @@ const Renderer = {
     }
 
     for (const line of state.drawnLines) {
-      this._drawTripleLine(line.points, 1);
+      this._drawTripleLine(line.points, 1, line.type);
     }
 
     if (state.currentLine && state.currentLine.length >= 2) {
-      this._drawTripleLine(state.currentLine, 0.8);
+      this._drawTripleLine(state.currentLine, 0.8, state.currentInkType);
     }
 
     if (state.dogBody) {
@@ -113,13 +113,22 @@ const Renderer = {
   },
 
   // Triple-layered ink line: shadow → brown base → gold highlight
-  _drawTripleLine(points, opacityScale) {
-    this._drawLine(points, 'rgba(30, 18, 4, 1)', LINE_THICKNESS + 4,
-      0.55 * (opacityScale === 1 ? 1 : 0.4 / 0.55));
-    this._drawLine(points, '#a07428', LINE_THICKNESS + 1,
-      opacityScale === 1 ? 1 : 0.7);
-    this._drawLine(points, '#e8b84a', LINE_THICKNESS - 2,
-      opacityScale === 1 ? 1 : 0.85);
+  _drawTripleLine(points, opacityScale, type = 'black') {
+    if (type === 'red') {
+      this._drawLine(points, 'rgba(40, 10, 10, 1)', LINE_THICKNESS + 4,
+        0.55 * (opacityScale === 1 ? 1 : 0.4 / 0.55));
+      this._drawLine(points, '#aa2222', LINE_THICKNESS + 1,
+        opacityScale === 1 ? 1 : 0.7);
+      this._drawLine(points, '#ff6666', LINE_THICKNESS - 2,
+        opacityScale === 1 ? 1 : 0.85);
+    } else {
+      this._drawLine(points, 'rgba(30, 18, 4, 1)', LINE_THICKNESS + 4,
+        0.55 * (opacityScale === 1 ? 1 : 0.4 / 0.55));
+      this._drawLine(points, '#a07428', LINE_THICKNESS + 1,
+        opacityScale === 1 ? 1 : 0.7);
+      this._drawLine(points, '#e8b84a', LINE_THICKNESS - 2,
+        opacityScale === 1 ? 1 : 0.85);
+    }
   },
 
   _drawLine(points, color, thickness, alpha = 1) {

@@ -155,12 +155,34 @@ const UI = (() => {
     document.getElementById('timer-value').textContent = formatTime(remaining);
   }
 
-  function updateInk(remaining, total) {
+  function updateInk(remaining, total, type = 'black') {
     const frac = total > 0 ? clamp(remaining / total, 0, 1) : 0;
     const fill = document.getElementById('ink-bar-fill');
     fill.style.width = (frac * 100) + '%';
-    fill.style.backgroundColor = frac < 0.2 ? '#cc3333' : '#f5c518';
+
+    if (type === 'red') {
+      fill.style.backgroundColor = frac < 0.2 ? '#aa0000' : '#cc3333';
+    } else {
+      fill.style.backgroundColor = frac < 0.2 ? '#cc3333' : '#f5c518';
+    }
     document.getElementById('ink-value').textContent = Math.round(remaining) + 'px';
+  }
+
+  function setInkToggleBinding(onClick) {
+    _rewire('ink-toggle', onClick);
+  }
+
+  function updateInkToggleUI(type) {
+    const btn = document.getElementById('ink-toggle');
+    if (type === 'red') {
+      btn.textContent = 'Red Ink';
+      btn.style.borderColor = '#cc3333';
+      btn.style.color = '#cc3333';
+    } else {
+      btn.textContent = 'Black Ink';
+      btn.style.borderColor = ''; // reset to default
+      btn.style.color = ''; // reset to default
+    }
   }
 
   function updateBeeCount(alive, total) {
@@ -202,6 +224,8 @@ const UI = (() => {
     showLeaderboard,
     updateTimer,
     updateInk,
+    setInkToggleBinding,
+    updateInkToggleUI,
     updateBeeCount,
     setLevelHUD,
     setDangerLevel,

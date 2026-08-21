@@ -157,31 +157,32 @@ const UI = (() => {
 
   function updateInk(remaining, total, type = 'black') {
     const frac = total > 0 ? clamp(remaining / total, 0, 1) : 0;
-    const fill = document.getElementById('ink-bar-fill');
-    fill.style.width = (frac * 100) + '%';
-
-    if (type === 'red') {
-      fill.style.backgroundColor = frac < 0.2 ? '#aa0000' : '#cc3333';
-    } else {
-      fill.style.backgroundColor = frac < 0.2 ? '#cc3333' : '#f5c518';
+    const fill = document.getElementById(`hotkey-fill-${type}`);
+    if (fill) {
+      fill.style.width = (frac * 100) + '%';
+      if (type === 'red') {
+        fill.style.backgroundColor = frac < 0.2 ? '#aa0000' : '#cc3333';
+      } else {
+        fill.style.backgroundColor = frac < 0.2 ? '#cc3333' : '#f5c518';
+      }
     }
-    document.getElementById('ink-value').textContent = Math.round(remaining) + 'px';
+    const val = document.getElementById(`hotkey-val-${type}`);
+    if (val) {
+      val.textContent = Math.round(remaining) + 'px';
+    }
   }
 
-  function setInkToggleBinding(onClick) {
-    _rewire('ink-toggle', onClick);
+  function setInkHotkeyBindings(onBlackClick, onRedClick) {
+    _rewire('btn-ink-black', onBlackClick);
+    _rewire('btn-ink-red', onRedClick);
   }
 
-  function updateInkToggleUI(type) {
-    const btn = document.getElementById('ink-toggle');
-    if (type === 'red') {
-      btn.textContent = 'Red Ink';
-      btn.style.borderColor = '#cc3333';
-      btn.style.color = '#cc3333';
-    } else {
-      btn.textContent = 'Black Ink';
-      btn.style.borderColor = ''; // reset to default
-      btn.style.color = ''; // reset to default
+  function updateInkActiveUI(type) {
+    const btnBlack = document.getElementById('btn-ink-black');
+    const btnRed = document.getElementById('btn-ink-red');
+    if (btnBlack && btnRed) {
+      btnBlack.classList.toggle('active', type === 'black');
+      btnRed.classList.toggle('active', type === 'red');
     }
   }
 
@@ -224,8 +225,8 @@ const UI = (() => {
     showLeaderboard,
     updateTimer,
     updateInk,
-    setInkToggleBinding,
-    updateInkToggleUI,
+    setInkHotkeyBindings,
+    updateInkActiveUI,
     updateBeeCount,
     setLevelHUD,
     setDangerLevel,

@@ -291,6 +291,69 @@ body {
   width: 100%;
   padding: 12px;
   min-height: 0;
+  position: relative;
+}
+
+#ink-hotkeys {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(15, 31, 9, 0.7);
+  padding: 8px;
+  border-radius: 8px;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.ink-hotkey-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  padding: 6px;
+  cursor: pointer;
+  text-align: left;
+  width: 150px;
+  font-family: inherit;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.ink-hotkey-btn.active {
+  border-color: var(--accent-amber);
+  background: var(--bg-canvas);
+}
+
+#btn-ink-red.active {
+  border-color: var(--danger);
+}
+
+.hotkey-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+
+.hotkey-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-panel);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.hotkey-bar-fill {
+  height: 100%;
+  width: 100%;
+  background: var(--accent-amber);
+  transition: width 0.15s linear, background-color 0.3s;
 }
 
 #game-canvas {

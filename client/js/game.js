@@ -147,15 +147,21 @@
     document.addEventListener('keydown', handleKeyDown);
 
     UI.showGame();
-    UI.setInkToggleBinding(() => {
-      currentInkType = currentInkType === 'black' ? 'red' : 'black';
-      UI.updateInkToggleUI(currentInkType);
-      UI.updateInk(inkRemaining[currentInkType], inkMax[currentInkType], currentInkType);
-    });
+    UI.setInkHotkeyBindings(
+      () => {
+        currentInkType = 'black';
+        UI.updateInkActiveUI(currentInkType);
+      },
+      () => {
+        currentInkType = 'red';
+        UI.updateInkActiveUI(currentInkType);
+      }
+    );
     UI.setLevelHUD(currentLevel);
     UI.updateTimer(timeRemaining, levelConfig.survivalTime);
-    UI.updateInk(inkRemaining[currentInkType], inkMax[currentInkType], currentInkType);
-    UI.updateInkToggleUI(currentInkType);
+    UI.updateInk(inkRemaining['black'], inkMax['black'], 'black');
+    UI.updateInk(inkRemaining['red'], inkMax['red'], 'red');
+    UI.updateInkActiveUI(currentInkType);
     UI.updateBeeCount(0, levelConfig.beeCount);
     UI.setDangerLevel(0);
 
@@ -216,7 +222,8 @@
     updateDanger();
 
     UI.updateTimer(timeRemaining, levelConfig.survivalTime);
-    UI.updateInk(inkRemaining[currentInkType], inkMax[currentInkType], currentInkType);
+    UI.updateInk(inkRemaining['black'], inkMax['black'], 'black');
+    UI.updateInk(inkRemaining['red'], inkMax['red'], 'red');
     UI.updateBeeCount(beesAlive, levelConfig.beeCount);
 
     if (state === State.PLAY &&
@@ -577,12 +584,10 @@
     if (state !== State.PLAY) return;
     if (e.key === '1') {
       currentInkType = 'black';
-      UI.updateInkToggleUI(currentInkType);
-      UI.updateInk(inkRemaining[currentInkType], inkMax[currentInkType], currentInkType);
+      UI.updateInkActiveUI(currentInkType);
     } else if (e.key === '2') {
       currentInkType = 'red';
-      UI.updateInkToggleUI(currentInkType);
-      UI.updateInk(inkRemaining[currentInkType], inkMax[currentInkType], currentInkType);
+      UI.updateInkActiveUI(currentInkType);
     }
   }
 

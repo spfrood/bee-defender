@@ -44,15 +44,25 @@
         <div class="hud-bar"><div id="timer-bar-fill" class="hud-bar-fill"></div></div>
         <span id="timer-value" class="hud-value"></span>
       </div>
-      <div class="hud-item hud-bar-wrap">
-        <span class="hud-label">Ink</span>
-        <div class="hud-bar"><div id="ink-bar-fill" class="hud-bar-fill"></div></div>
-        <span id="ink-value" class="hud-value"></span>
-        <button id="ink-toggle" class="btn" style="padding: 4px 8px; margin-left: 8px; font-size: 0.85rem;">Black Ink</button>
-      </div>
       <div class="hud-item" id="bee-count">🐝 0/0</div>
     </div>
     <div id="canvas-wrap">
+      <div id="ink-hotkeys">
+        <button id="btn-ink-black" class="ink-hotkey-btn active">
+          <div class="hotkey-top">
+            <span class="hotkey-label">[1] Black Ink</span>
+            <span id="hotkey-val-black" class="hotkey-value"></span>
+          </div>
+          <div class="hotkey-bar"><div id="hotkey-fill-black" class="hotkey-bar-fill"></div></div>
+        </button>
+        <button id="btn-ink-red" class="ink-hotkey-btn">
+          <div class="hotkey-top">
+            <span class="hotkey-label">[2] Red Ink</span>
+            <span id="hotkey-val-red" class="hotkey-value"></span>
+          </div>
+          <div class="hotkey-bar"><div id="hotkey-fill-red" class="hotkey-bar-fill"></div></div>
+        </button>
+      </div>
       <canvas id="game-canvas" width="800" height="600"></canvas>
     </div>
   </div>

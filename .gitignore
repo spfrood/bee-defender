@@ -2,4 +2,3 @@ node_modules/
 data/
 *.log
 .pm2/
-design-doc.md

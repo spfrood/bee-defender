@@ -14,7 +14,6 @@
   let state        = State.START;
   let currentLevel = 1;
   let runScore     = 0;     // cumulative score banked from levels cleared this run
-  let inkCarryover = { black: 0, red: 0 };     // leftover ink carried into the current round
   let levelConfig  = null;
 
   // After this level, every Nth bee to spawn is a "bomber"
@@ -32,7 +31,7 @@
   let bees          = [];
   let timeRemaining = 0;
   let inkRemaining  = { black: 0, red: 0 };
-  let inkMax        = { black: 0, red: 0 };    // ink the round started with (base + carryover)
+  let inkMax        = { black: 0, red: 0 };    // ink the round started with
   let currentInkType = 'black'; // toggles between 'black' and 'red'
   let beesAlive     = 0;
   let spawnQueue    = [];   // [{t}] sorted descending; .pop() yields next
@@ -74,17 +73,13 @@
 
   function onStartPlay() {
     runScore = 0;       // fresh run
-    inkCarryover = { black: 0, red: 0 };   // no ink carried into the first round
     showIntro();
   }
 
   function showIntro() {
     state = State.INTRO;
     levelConfig = LevelGenerator.generate(currentLevel);
-    // Since UI currently accepts a single number for carryover on the intro screen,
-    // we'll pass total carryover. Or ideally we'd show both.
-    const totalCarryover = inkCarryover.black + inkCarryover.red;
-    UI.showIntro(levelConfig, startPlay, totalCarryover);
+    UI.showIntro(levelConfig, startPlay);
   }
 
   // ---------- Play ----------
@@ -105,15 +100,14 @@
     pendingExplosions = [];
 
     timeRemaining = levelConfig.survivalTime;
-    // Leftover ink from the previous round carries forward
-    // Red ink is purely an optional toggle, let's say they get the same limit
+    // Each round starts with the default amount of ink generated for that level
     inkRemaining = {
-      black: levelConfig.inkLimit + inkCarryover.black,
-      red: levelConfig.inkLimit + inkCarryover.red
+      black: levelConfig.inkLimit,
+      red: levelConfig.inkLimit
     };
     inkMax = {
-      black: inkRemaining.black,
-      red: inkRemaining.red
+      black: levelConfig.inkLimit,
+      red: levelConfig.inkLimit
     };
     currentInkType = 'black';
 
@@ -533,7 +527,6 @@
       level: currentLevel,
       timeRemaining,
       inkRemaining: totalRemaining,  // passed for display
-      inkRemainingObj: { ...inkRemaining }, // passed for carryover
       seed: levelConfig.seed,
       username: sessionStorage.getItem('bd_username') || ''
     };
@@ -546,7 +539,6 @@
     UI.showResult(lastResult.outcome, lastResult, {
       onNext: () => {
         runScore += lastResult.levelScore;       // bank the level just cleared
-        inkCarryover = lastResult.inkRemainingObj;  // carry leftover ink forward
         currentLevel += 1;
         showIntro();
       },
@@ -574,7 +566,6 @@
   function startNewGame() {
     currentLevel = 1;
     runScore = 0;
-    inkCarryover = { black: 0, red: 0 };
     UI.showStart(onStartPlay);
   }
 

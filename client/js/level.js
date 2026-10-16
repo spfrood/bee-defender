@@ -36,10 +36,8 @@ const LevelGenerator = (() => {
     const seed = hashLevelSeed('level-' + N);
     const rng = mulberry32(seed);
 
-    const beeCount      = clamp(2 + Math.floor((N - 1) * 0.8), 2, 16);
-    // Round length scales only with the number of bees: 2s before the first
-    // bee + 1s per bee of spawn window + 7s after the last bee = beeCount + 9.
-    const survivalTime  = beeCount + 9;
+    const beeCount      = 2 + (N - 1) * 2;
+    const survivalTime  = N + 9;
     const inkLimit      = clamp(600 - (N - 1) * 16, 170, 600);
     const obstacleCount = Math.floor((N - 1) / 3);
     const beeSpeed      = clamp(1.0 + (N - 1) * 0.12, 1.0, 3.2);
@@ -68,10 +66,15 @@ const LevelGenerator = (() => {
 
     // Spawn points along all four edges, slight inward offset
     const INSET = 14;
-    const spawnCount = Math.max(4, Math.ceil(beeCount * 0.75));
     const beeSpawns = [];
-    for (let i = 0; i < spawnCount; i++) {
-      const edge = i % 4;
+    let lastEdge = -1;
+    for (let i = 0; i < beeCount; i++) {
+      let edge;
+      do {
+        edge = Math.floor(rng() * 4);
+      } while (edge === lastEdge);
+      lastEdge = edge;
+
       const t = 0.15 + rng() * 0.7; // avoid exact corners
       let x, y;
       if (edge === 0)      { x = CANVAS_W * t;       y = INSET; }              // top
